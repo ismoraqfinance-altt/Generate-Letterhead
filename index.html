@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Letterhead Maker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    /* Smooth fade-out for splash */
+    #splash {
+      transition: opacity 1s ease, transform 1s ease;
+    }
+    #splash.fade-out {
+      opacity: 0;
+      transform: scale(1.1);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 via-white to-blue-100 flex flex-col min-h-screen">
+
+  <!-- Splash Screen -->
+  <div id="splash" class="fixed inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 flex flex-col items-center justify-center z-50">
+    <h1 class="text-4xl sm:text-5xl font-extrabold text-white mb-4 animate-bounce">✨ Letterhead Maker</h1>
+    <svg class="animate-spin h-10 w-10 text-white mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+    </svg>
+    <p class="text-white text-sm sm:text-base animate-pulse">Loading, please wait...</p>
+  </div>
+
+  <!-- Header -->
+  <header class="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-wide">
+        ✨ Letterhead Maker
+      </h1>
+      <nav class="hidden sm:flex space-x-6 text-white text-sm font-medium">
+        <a href="#" class="hover:text-gray-200">Home</a>
+        <a href="#" class="hover:text-gray-200">Features</a>
+        <a href="#" class="hover:text-gray-200">About</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-grow flex items-center justify-center px-4 py-8">
+    <div class="bg-white shadow-xl rounded-3xl p-6 sm:p-10 w-full max-w-lg text-center transform transition hover:scale-[1.02]">
+      <h2 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-6">
+        Print PDF on Letterhead
+      </h2>
+      <p class="text-gray-500 mb-6 text-sm sm:text-base">
+        Upload your PDF, enter a reference number, and we’ll automatically apply it to the official letterhead.
+      </p>
+
+      <form id="uploadForm" class="space-y-5">
+        <!-- Reference No Field -->
+        <input
+          type="text"
+          id="referenceNo"
+          placeholder="Enter Reference No."
+          class="block w-full px-3 py-2 text-sm sm:text-base text-gray-700 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+
+        <!-- File Upload -->
+        <input
+          type="file"
+          id="pdfFile"
+          accept="application/pdf"
+          required
+          class="block w-full text-sm sm:text-base text-gray-700 border border-gray-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+        >
+
+        <!-- Submit Button -->
+        <button
+          type="submit"
+          class="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-lg shadow-md hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 text-sm sm:text-base">
+          🚀 Generate Letterhead PDF
+        </button>
+      </form>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-gray-900 text-gray-300 text-center py-4 text-xs sm:text-sm mt-6">
+    Powered by <span class="font-semibold text-white">Treesol Technologies</span>
+  </footer>
+
+  <!-- Loading Modal -->
+  <div id="loadingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40">
+    <div class="bg-white p-6 rounded-2xl shadow-lg flex flex-col items-center">
+      <svg class="animate-spin h-8 w-8 text-blue-600 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+      </svg>
+      <p class="text-gray-700 font-medium">Your PDF is being generated...</p>
+    </div>
+  </div>
+
+  <!-- Main Script -->
+  <script>
+    const { PDFDocument, rgb, StandardFonts } = PDFLib;
+
+    async function fetchAsset(path) {
+      const response = await fetch(path);
+      return await response.arrayBuffer();
+    }
+
+    async function trimPdf(pdfBytes) {
+      const loadingTask = window['pdfjs-dist/build/pdf'].getDocument({ data: pdfBytes });
+      const pdf = await loadingTask.promise;
+      const trimmedPdf = await PDFDocument.create();
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 2.0 });
+
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        canvas.width = Math.round(viewport.width);
+        canvas.height = Math.round(viewport.height);
+
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
+
+        for (let y = 0; y < canvas.height; y++) {
+          for (let x = 0; x < canvas.width; x++) {
+            const idx = (y * canvas.width + x) * 4;
+            const r = imageData.data[idx];
+            const g = imageData.data[idx + 1];
+            const b = imageData.data[idx + 2];
+            if (!(r > 240 && g > 240 && b > 240)) {
+              if (x < minX) minX = x;
+              if (y < minY) minY = y;
+              if (x > maxX) maxX = x;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+
+        if (minX < maxX && minY < maxY) {
+          minX = Math.floor(minX);
+          minY = Math.floor(minY);
+          maxX = Math.ceil(maxX);
+          maxY = Math.ceil(maxY);
+
+          const cw = maxX - minX;
+          const ch = maxY - minY;
+
+          const croppedCanvas = document.createElement("canvas");
+          croppedCanvas.width = cw;
+          croppedCanvas.height = ch;
+          const croppedCtx = croppedCanvas.getContext("2d");
+          croppedCtx.putImageData(ctx.getImageData(minX, minY, cw, ch), 0, 0);
+
+          const pngUrl = croppedCanvas.toDataURL("image/png");
+          const pngBytes = await fetch(pngUrl).then(res => res.arrayBuffer());
+          const img = await trimmedPdf.embedPng(pngBytes);
+
+          const page2 = trimmedPdf.addPage([cw, ch]);
+          page2.drawImage(img, { x: 0, y: 0, width: cw, height: ch });
+        }
+      }
+      return await trimmedPdf.save();
+    }
+
+    document.getElementById("uploadForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      document.getElementById("loadingModal").classList.remove("hidden");
+
+      try {
+        const fileInput = document.getElementById("pdfFile");
+        const referenceNo = document.getElementById("referenceNo").value.trim();
+        if (!fileInput.files.length) {
+          alert("Please upload a PDF file.");
+          return;
+        }
+
+        const file = fileInput.files[0];
+        if (file.type !== "application/pdf") {
+          alert("Only PDF files are allowed.");
+          return;
+        }
+
+        const pdfBytes = await file.arrayBuffer();
+        const trimmedBytes = await trimPdf(pdfBytes);
+        const letterheadBytes = await fetchAsset("letterhead.pdf");
+        const stampBytes = await fetchAsset("stamp.png");
+
+        const outPdf = await PDFDocument.create();
+        const letterheadPdf = await PDFDocument.load(letterheadBytes);
+        const contentPdf = await PDFDocument.load(trimmedBytes);
+
+        let stampImg;
+        if ("stamp.png".endsWith(".png")) {
+          stampImg = await outPdf.embedPng(stampBytes);
+        } else {
+          stampImg = await outPdf.embedJpg(stampBytes);
+        }
+
+        const font = await outPdf.embedFont(StandardFonts.Helvetica);
+        const today = new Date();
+        const dateStr = today.toLocaleDateString("en-GB");
+
+        const [letterheadPage] = await letterheadPdf.copyPages(letterheadPdf, [0]);
+        const pageWidth = letterheadPage.getWidth();
+        const pageHeight = letterheadPage.getHeight();
+
+        const contentPageCount = contentPdf.getPageCount();
+
+        for (let i = 0; i < contentPageCount; i++) {
+          const [contentPageCopy] = await contentPdf.copyPages(contentPdf, [i]);
+          const page = outPdf.addPage([pageWidth, pageHeight]);
+
+          const embeddedLetterhead = await outPdf.embedPage(letterheadPage);
+          const embeddedContent = await outPdf.embedPage(contentPageCopy);
+
+          const margins = { top: 180, bottom: 70, left: 5, right: 5 };
+          const drawWidth = pageWidth - margins.left - margins.right;
+          const drawHeight = pageHeight - margins.top - margins.bottom;
+
+          const cw = contentPageCopy.getWidth();
+          const ch = contentPageCopy.getHeight();
+
+          const scale = Math.min(drawWidth / cw, drawHeight / ch);
+          const scaledW = Math.round(cw * scale);
+          const scaledH = Math.round(ch * scale);
+
+          const offsetX = Math.round(margins.left + (drawWidth - scaledW) / 2);
+          const offsetY = Math.round(margins.bottom + (drawHeight - scaledH) / 2);
+
+          page.drawPage(embeddedLetterhead, { x: 0, y: 0, width: pageWidth, height: pageHeight });
+          page.drawPage(embeddedContent, { x: offsetX, y: offsetY, width: scaledW, height: scaledH });
+
+          page.drawImage(stampImg, {
+            x: pageWidth - 70,
+            y: pageHeight - 780,
+            width: 70,
+            height: 70,
+          });
+
+          page.drawText(dateStr, {
+            x: pageWidth - 145,
+            y: pageHeight - 170,
+            size: 10,
+            font: font,
+            color: rgb(0, 0, 0),
+          });
+
+          if (referenceNo) {
+            page.drawText(referenceNo, {
+              x: pageWidth - 530,
+              y: pageHeight - 170,
+              size: 10,
+              font: font,
+              color: rgb(0, 0, 0),
+            });
+          }
+        }
+
+        const finalBytes = await outPdf.save();
+        const blob = new Blob([finalBytes], { type: "application/pdf" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "output.pdf";
+        link.click();
+      } finally {
+        document.getElementById("loadingModal").classList.add("hidden");
+      }
+    });
+
+    // Animate splash out after 2s
+    window.addEventListener("load", () => {
+      setTimeout(() => {
+        const splash = document.getElementById("splash");
+        splash.classList.add("fade-out");
+        setTimeout(() => splash.style.display = "none", 1000);
+      }, 2000);
+    });
+  </script>
+</body>
+</html>
